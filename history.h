@@ -34,7 +34,6 @@ void enable_history(){
 	strcat ( command , " " ) ; 
 	strcat ( command , " --enabled" ) ; 
 
-	printf("calling command %s " , command ) ; 
 	system(command);
 	exit(0);
 
