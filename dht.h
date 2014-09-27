@@ -313,6 +313,27 @@ int belongsToRange(key_t key, interval_t interval){
 	return 0;
 }
 
+void set_predecessor_rpc(node_t successor , node_t self){
+
+	int sockfd = getSocketFromNode(successor);
+	header_t header; 
+	h.type = SET_PREDECESSOR;
+
+	send(sockfd, &header, sizeof(header_t) , 0);
+	send(sockfd, &self, sizeof(self) , 0);
+	recv(sockfd, &header, sizeof(header_t) , 0);
+	if ( h.type == OK){
+		if ( debug)
+			printf("--Received OK signal\n"); 
+	}else
+	{
+		printf("Unknown response from server\n");
+		exit(0);
+	}
+
+	close(sockfd);
+
+}
 void init_finger_table(char * ip, char * port){
 	extern nodeinfo_t nodeinfo; 
 
@@ -418,29 +439,131 @@ void startServer(){
 			h.type = OK;
 			send(client_sock, &h, sizeof(h), 0);
 
-		}else
-			if ( h.type == PUT){
-				printf("Put request receive\n " ) ; 
-				h.type = OK;
-				send(client_sock, &h, sizeof(h), 0);
-			}else
-				if ( h.type == GET){
-					printf("Get request received\n" ) ; 
-					h.type = OK;
-					send(client_sock, &h, sizeof(h), 0);
-				}else
-					if ( h.type == FIND_SUCCESSOR ){
-						printf("Find successor request received\n" ) ; 
-						h.type = OK;
-						send(client_sock, &h, sizeof(h), 0);
-					}else{
-						printf("Unknown request\n" ) ; 
+		}else if ( h.type == PUT){
+			printf("Put request receive\n " ) ; 
+			h.type = OK;
+			send(client_sock, &h, sizeof(h), 0);
+		}else if ( h.type == GET){
+			printf("Get request received\n" ) ; 
+			h.type = OK;
+			send(client_sock, &h, sizeof(h), 0);
+		}else if ( h.type == FIND_SUCCESSOR ){
+			printf("Find successor request received\n" ) ; 
+			h.type = OK;
+			send(client_sock, &h, sizeof(h), 0);
+			key_t id ; 
+			recv(client_sock, &id, sizeof(id), 0);
+			node_t n = find_successor(id);
+			send(client_sock, &n, sizeof(n), 0);
 
-
-
-					}
-
+		}else if ( h.type == FIND_PREDECESSOR){
+			printf("Find successor request received\n" ) ; 
+			h.type = OK;
+			send(client_sock, &h, sizeof(h), 0);
+			key_t id ; 
+			recv(client_sock, &id, sizeof(id), 0);
+			node_t n = find_predecessor(id);
+			send(client_sock, &n, sizeof(n), 0);
+		}else if ( h.type == GET_SUCCESSOR){
+			printf("Find successor request received\n" ) ; 
+			h.type = OK;
+			send(client_sock, &h, sizeof(h), 0);
+			send(client_sock, &(nodeinfo.successor), sizeof(node_t), 0);
+		}else if ( h.type == GET_PREDECESSOR){
+			printf("Find successor request received\n" ) ; 
+			h.type = OK;
+			send(client_sock, &h, sizeof(h), 0);
+			send(client_sock, &(nodeinfo.predecessor), sizeof(node_t), 0);
+		}else if ( h.type == SET_PREDECESSOR){
+			printf("Find successor request received\n" ) ; 
+			h.type = OK;
+			send(client_sock, &h, sizeof(h), 0);
+			node_t p ; 
+			recv(client_sock, &p, sizeof(p), 0);
+			nodeinfo.predecessor = p;
+		}else if ( h.type == CLOSEST_PRECEDING_FINGER){
+			printf("Find successor request received\n" ) ; 
+			h.type = OK;
+			send(client_sock, &h, sizeof(h), 0);
+			key_t id  ;
+			recv(client_sock, &id, sizeof(id), 0);
+			node_t n = closest_preceding_finger(id);
+			send(client_sock, &n, sizeof(n), 0);
+		}else{
+			printf("Unknown request\n" ) ; 
+		}
 	}
 }
+node_t closest_preceding_finger_rpc(int sockfd, key_t id){
+	header_t h ; 
+	node_t cpf;
+	h.type = CLOSEST_PRECEDING_FINGER;
+	send(sock_fd, &h, sizeof(h), 0);
+	send(sock_fd, &id, sizeof(key_t), 0);
+	recv(sock_fd, &h, sizeof(h), 0);
+	if ( h.type == OK){
+		if ( debug)
+			printf("--Received OK signal\n"); 
+
+		recv(sock_fd, &cpf, sizeof(node_t), 0);
+	}else
+	{
+		printf("Unknown response from server\n");
+		exit(0);
+	}
+
+	return cpf;
+
+}
+node_t find_successor(key_t id){
+
+	node_t n = find_predecessor(id);
+	return get_successor_rpc(getSocketFromNode(n));
+}
+
+}
+node_t find_predecessor(key_t id){
+
+	extern nodeinfo_t nodeinfo;
+	node_t n1; 
+	n1 = nodeinfo.self;
+	interval_t interval ; 
+	interval.start = n1.key; 
+	interval.end = nodeinfo.successor.key ; 
+
+	while ( !belongsToRange(id , interval))
+	{
+		n1 = closest_preceding_finger_rpc(getSocketFromNode(n1), id);
+		interval.start = n1.key; 
+		interval.end = get_successor_rpc(getSocketFromNode(n1)).key;
+	}
+	return n1;
+}
+
+
+
+
+
+}
+node_t closest_preceding_finger(key_t id){
+
+	int i; 
+	interval_t interval ; 
+	extern nodeinfo_t nodeinfo;
+
+
+	interval.start = nodeinfo.self.key; 
+	interval.end = id; 
+	for  ( i = M  ; i >= 1; i -- ) 
+	{
+		if ( belongsToRange(nodeinfo.finger[i].successor.key , interval ) )
+		{
+			return nodeinfo.finger[i].successor; 
+		}
+	}
+	return nodeinfo.self;
+}
+
+
 
 #endif

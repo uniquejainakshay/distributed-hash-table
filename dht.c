@@ -87,7 +87,7 @@ void shell(){
 				printf("Already connected to a ring \n");
 				continue;
 			}
-			join_remote_node(command[1], command[2]);
+			join_ring(command[1], command[2]);
 
 		}else if ( 0 == strcmp( command[0] , "quit")){
 			printf("quit\n");
